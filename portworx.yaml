@@ -1,45 +1,5 @@
 ---
 apiVersion: v1
-kind: Namespace
-metadata:
-  name: portworx
-  namespace: portworx
-
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: px-role
-  namespace: portworx
-rules:
-- apiGroups:
-  - ""
-  resources:
-  - secrets
-  verbs:
-  - get
-  - list
-  - create
-  - update
-  - patch
-
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: px-role-binding
-  namespace: portworx
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: px-role
-subjects:
-- kind: ServiceAccount
-  name: px-account
-  namespace: kube-system
-
----
-apiVersion: v1
 data:
   policy.cfg: |-
     {
@@ -1147,8 +1107,8 @@ apiVersion: extensions/v1beta1
 kind: DaemonSet
 metadata:
   annotations:
-    portworx.com/helm-vars: chart="portworx-1.0.0",AKSorEKSInstall="true",clusterName="mycluster",consul="map[token:none]",dataInterface="none",deploymentType="oci",drives="none",envVars="none",etcd="map[ca:none
-      cert:none certPath:none credentials:none:none key:none]",imageType="none",imageVersion="2.0.3.6",internalKVDB="true",lighthouse="true",lighthouseStorkConnectorVersion="0.2",lighthouseSyncVersion="0.4",lighthouseVersion="2.0.4",managementInterface="none",secretType="k8s",serviceAccount="map[hook:map[create:true
+    portworx.com/helm-vars: chart="portworx-1.0.0",AKSorEKSInstall="true",clusterName="mycluster",consul="map[token:none]",dataInterface="none",deploymentType="oci",drives="none",envVars="API_SERVER=http://lighthouse-new.portworx.com;",etcd="map[ca:none
+      cert:none certPath:none credentials:none:none key:none]",imageType="none",imageVersion="2.0.3.6",internalKVDB="true",lighthouse="true",lighthouseStorkConnectorVersion="0.2",lighthouseSyncVersion="0.4",lighthouseVersion="2.0.4",managementInterface="none",secretType="KVDB",serviceAccount="map[hook:map[create:true
       name:<nil>]]",stork="true",storkVersion="2.1.1"
     portworx.com/install-source: helm/Tiller-r0
   name: portworx
@@ -1181,12 +1141,16 @@ spec:
         - -c
         - mycluster
         - -secret_type
-        - k8s
+        - KVDB
         - -x
         - kubernetes
         env:
         - name: PX_TEMPLATE_VERSION
           value: v2
+        - name: API_SERVER
+          value: http://lighthouse-new.portworx.com
+        - name: ""
+          value: ""
         image: portworx/oci-monitor:2.0.3.6
         imagePullPolicy: Always
         livenessProbe:
