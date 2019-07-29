@@ -1107,7 +1107,11 @@ apiVersion: extensions/v1beta1
 kind: DaemonSet
 metadata:
   annotations:
-    portworx.com/helm-vars: chart="portworx-1.0.0",AKSorEKSInstall="true",clusterName="mycluster",consul="map[token:none]",dataInterface="none",deploymentType="oci",drives="none",envVars="API_SERVER=http://lighthouse-new.portworx.com;",etcd="map[ca:none
+    portworx.com/helm-vars: chart="portworx-1.0.0",AKSorEKSInstall="true",clusterName="mycluster",consul="map[token:none]",dataInterface="none",deploymentType="oci",drives="none",env="[map[name:PX_TEMPLATE_VERSION
+      value:v2] map[name:AZURE_CLIENT_SECRET valueFrom:map[secretKeyRef:map[key:AZURE_CLIENT_SECRET
+      name:px-azure]]] map[name:AZURE_CLIENT_ID valueFrom:map[secretKeyRef:map[key:AZURE_CLIENT_ID
+      name:px-azure]]] map[name:AZURE_TENANT_ID valueFrom:map[secretKeyRef:map[key:AZURE_TENANT_ID
+      name:px-azure]]]]",envVars="API_SERVER=http://lighthouse-new.portworx.com;",etcd="map[ca:none
       cert:none certPath:none credentials:none:none key:none]",imageType="none",imageVersion="2.0.3.6",internalKVDB="true",lighthouse="true",lighthouseStorkConnectorVersion="0.2",lighthouseSyncVersion="0.4",lighthouseVersion="2.0.4",managementInterface="none",secretType="KVDB",serviceAccount="map[hook:map[create:true
       name:<nil>]]",stork="true",storkVersion="2.1.1"
     portworx.com/install-source: helm/Tiller-r0
