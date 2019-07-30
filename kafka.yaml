@@ -236,5 +236,3 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: portworx
-  # labels:
-  #   istio-injection: enabled
