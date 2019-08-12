@@ -1,4 +1,49 @@
 ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app: grafana
+    chart: grafana-3.3.10
+    heritage: Tiller
+    release: grafana
+  name: grafana
+  namespace: grafana
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  labels:
+    app: grafana
+    chart: grafana-3.3.10
+    heritage: Tiller
+    release: grafana
+  name: grafana-test
+  namespace: grafana
+rules:
+- apiGroups:
+  - policy
+  resourceNames:
+  - grafana-test
+  resources:
+  - podsecuritypolicies
+  verbs:
+  - use
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app: grafana
+    chart: grafana-3.3.10
+    heritage: Tiller
+    release: grafana
+  name: grafana-test
+  namespace: grafana
+
+---
 apiVersion: extensions/v1beta1
 kind: PodSecurityPolicy
 metadata:
@@ -51,6 +96,39 @@ spec:
   - persistentVolumeClaim
 
 ---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app: grafana
+    chart: grafana-3.3.10
+    heritage: Tiller
+    release: grafana
+  name: grafana-clusterrole
+  namespace: grafana
+rules: []
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app: grafana
+    chart: grafana-3.3.10
+    heritage: Tiller
+    release: grafana
+  name: grafana-clusterrolebinding
+  namespace: grafana
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: grafana-clusterrole
+subjects:
+- kind: ServiceAccount
+  name: grafana
+  namespace: grafana
+
+---
 apiVersion: extensions/v1beta1
 kind: PodSecurityPolicy
 metadata:
@@ -83,9 +161,30 @@ spec:
   - secret
 
 ---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: Role
+metadata:
+  labels:
+    app: grafana
+    chart: grafana-3.3.10
+    heritage: Tiller
+    release: grafana
+  name: grafana
+  namespace: grafana
+rules:
+- apiGroups:
+  - extensions
+  resourceNames:
+  - grafana
+  resources:
+  - podsecuritypolicies
+  verbs:
+  - use
+
+---
 apiVersion: v1
 data:
-  admin-password: NmJpak03NUNlY2NzN3J5TjRjNDRBQTNwVVdiaFlma3p3UFR5ZjNIWA==
+  admin-password: bk04bUFDQnZhVnZxWTB3NzJaMExGcGpiVGFxak9ZVGxLUmk0WWwxYQ==
   admin-user: YWRtaW4=
   ldap-toml: ""
 kind: Secret
@@ -98,66 +197,6 @@ metadata:
   name: grafana
   namespace: grafana
 type: Opaque
-
----
-apiVersion: v1
-data:
-  dashboardproviders.yaml: |
-    apiVersion: 1
-    providers:
-    - disableDeletion: false
-      editable: true
-      folder: null
-      name: default
-      options:
-        path: /var/lib/grafana/dashboards/default
-      orgId: 1
-      type: file
-  datasources.yaml: |
-    apiVersion: 1
-    datasources:
-    - access: proxy
-      isDefault: true
-      name: Prometheus
-      type: prometheus
-      url: http://prometheus-server.prometheus.svc.cluster.local
-  download_dashboards.sh: |
-    #!/usr/bin/env sh
-    set -euf
-    mkdir -p /var/lib/grafana/dashboards/default
-    curl -sk \
-    --connect-timeout 60 \
-    --max-time 60 \
-    -H "Accept: application/json" \
-    -H "Content-Type: application/json;charset=UTF-8" \https://grafana.com/api/dashboards/6417/revisions/1/download| sed 's|\"datasource\":[^,]*|\"datasource\": \"Prometheus\"|g'\
-    > /var/lib/grafana/dashboards/default/cluster-metrics.json
-    curl -sk \
-    --connect-timeout 60 \
-    --max-time 60 \
-    -H "Accept: application/json" \
-    -H "Content-Type: application/json;charset=UTF-8" \https://grafana.com/api/dashboards/6739/revisions/1/download| sed 's|\"datasource\":[^,]*|\"datasource\": \"Prometheus\"|g'\
-    > /var/lib/grafana/dashboards/default/persistent-volumes.json
-  grafana.ini: |
-    [analytics]
-    check_for_updates = true
-    [grafana_net]
-    url = https://grafana.net
-    [log]
-    mode = console
-    [paths]
-    data = /var/lib/grafana/data
-    logs = /var/log/grafana
-    plugins = /var/lib/grafana/plugins
-    provisioning = /etc/grafana/provisioning
-kind: ConfigMap
-metadata:
-  labels:
-    app: grafana
-    chart: grafana-3.3.10
-    heritage: Tiller
-    release: grafana
-  name: grafana
-  namespace: grafana
 
 ---
 apiVersion: v1
@@ -213,216 +252,6 @@ spec:
   storageClassName: default
 
 ---
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  labels:
-    app: grafana
-    chart: grafana-3.3.10
-    heritage: Tiller
-    release: grafana
-  name: grafana
-  namespace: grafana
-
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  labels:
-    app: grafana
-    chart: grafana-3.3.10
-    heritage: Tiller
-    release: grafana
-  name: grafana-test
-  namespace: grafana
-
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  labels:
-    app: grafana
-    chart: grafana-3.3.10
-    heritage: Tiller
-    release: grafana
-  name: grafana-clusterrole
-  namespace: grafana
-rules: []
-
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  labels:
-    app: grafana
-    chart: grafana-3.3.10
-    heritage: Tiller
-    release: grafana
-  name: grafana-clusterrolebinding
-  namespace: grafana
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: grafana-clusterrole
-subjects:
-- kind: ServiceAccount
-  name: grafana
-  namespace: grafana
-
----
-apiVersion: rbac.authorization.k8s.io/v1beta1
-kind: Role
-metadata:
-  labels:
-    app: grafana
-    chart: grafana-3.3.10
-    heritage: Tiller
-    release: grafana
-  name: grafana
-  namespace: grafana
-rules:
-- apiGroups:
-  - extensions
-  resourceNames:
-  - grafana
-  resources:
-  - podsecuritypolicies
-  verbs:
-  - use
-
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  labels:
-    app: grafana
-    chart: grafana-3.3.10
-    heritage: Tiller
-    release: grafana
-  name: grafana-test
-  namespace: grafana
-rules:
-- apiGroups:
-  - policy
-  resourceNames:
-  - grafana-test
-  resources:
-  - podsecuritypolicies
-  verbs:
-  - use
-
----
-apiVersion: rbac.authorization.k8s.io/v1beta1
-kind: RoleBinding
-metadata:
-  labels:
-    app: grafana
-    chart: grafana-3.3.10
-    heritage: Tiller
-    release: grafana
-  name: grafana
-  namespace: grafana
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: grafana
-subjects:
-- kind: ServiceAccount
-  name: grafana
-  namespace: grafana
-
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  labels:
-    app: grafana
-    chart: grafana-3.3.10
-    heritage: Tiller
-    release: grafana
-  name: grafana-test
-  namespace: grafana
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: grafana-test
-subjects:
-- kind: ServiceAccount
-  name: grafana-test
-  namespace: grafana
-
----
-apiVersion: v1
-kind: Service
-metadata:
-  labels:
-    app: grafana
-    chart: grafana-3.3.10
-    heritage: Tiller
-    release: grafana
-  name: grafana
-  namespace: grafana
-spec:
-  ports:
-  - name: service
-    port: 80
-    protocol: TCP
-    targetPort: 3000
-  selector:
-    app: grafana
-    release: grafana
-  type: ClusterIP
-
----
-apiVersion: v1
-kind: Pod
-metadata:
-  annotations:
-    helm.sh/hook: test-success
-  labels:
-    app: grafana
-    chart: grafana-3.3.10
-    heritage: Tiller
-    release: grafana
-  name: grafana-test
-  namespace: grafana
-spec:
-  containers:
-  - command:
-    - /tools/bats/bats
-    - -t
-    - /tests/run.sh
-    image: dduportal/bats:0.4.0
-    name: grafana-test
-    volumeMounts:
-    - mountPath: /tests
-      name: tests
-      readOnly: true
-    - mountPath: /tools
-      name: tools
-  initContainers:
-  - command:
-    - bash
-    - -c
-    - |
-      set -ex
-      # copy bats to tools dir
-      cp -R /usr/local/libexec/ /tools/bats/
-    image: dduportal/bats:0.4.0
-    name: test-framework
-    volumeMounts:
-    - mountPath: /tools
-      name: tools
-  restartPolicy: Never
-  serviceAccountName: grafana-test
-  volumes:
-  - configMap:
-      name: grafana-test
-    name: tests
-  - emptyDir: {}
-    name: tools
-
----
 apiVersion: apps/v1beta2
 kind: Deployment
 metadata:
@@ -447,7 +276,7 @@ spec:
         checksum/config: d193c197a676682516036c29a5c9c01c6a35f59c2a3730c712105908efb6d841
         checksum/dashboards-json-config: e64f8ab57c728dce2a2291a12f3a2540c082cb1fe3293db5dcf861f161566a29
         checksum/sc-dashboard-provider-config: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
-        checksum/secret: 2cee69aa0121882b2f4356bc331318c7b0fb1480834e7b2304e6a1e5d0e05a7d
+        checksum/secret: 06496c9505bdd2b117192677fb7fdc52d4d5ff602fe6722023543155a0e798f6
       labels:
         app: grafana
         release: grafana
@@ -548,4 +377,175 @@ spec:
       - name: storage
         persistentVolumeClaim:
           claimName: grafana
+
+---
+apiVersion: v1
+data:
+  dashboardproviders.yaml: |
+    apiVersion: 1
+    providers:
+    - disableDeletion: false
+      editable: true
+      folder: null
+      name: default
+      options:
+        path: /var/lib/grafana/dashboards/default
+      orgId: 1
+      type: file
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+    - access: proxy
+      isDefault: true
+      name: Prometheus
+      type: prometheus
+      url: http://prometheus-server.prometheus.svc.cluster.local
+  download_dashboards.sh: |
+    #!/usr/bin/env sh
+    set -euf
+    mkdir -p /var/lib/grafana/dashboards/default
+    curl -sk \
+    --connect-timeout 60 \
+    --max-time 60 \
+    -H "Accept: application/json" \
+    -H "Content-Type: application/json;charset=UTF-8" \https://grafana.com/api/dashboards/6417/revisions/1/download| sed 's|\"datasource\":[^,]*|\"datasource\": \"Prometheus\"|g'\
+    > /var/lib/grafana/dashboards/default/cluster-metrics.json
+    curl -sk \
+    --connect-timeout 60 \
+    --max-time 60 \
+    -H "Accept: application/json" \
+    -H "Content-Type: application/json;charset=UTF-8" \https://grafana.com/api/dashboards/6739/revisions/1/download| sed 's|\"datasource\":[^,]*|\"datasource\": \"Prometheus\"|g'\
+    > /var/lib/grafana/dashboards/default/persistent-volumes.json
+  grafana.ini: |
+    [analytics]
+    check_for_updates = true
+    [grafana_net]
+    url = https://grafana.net
+    [log]
+    mode = console
+    [paths]
+    data = /var/lib/grafana/data
+    logs = /var/log/grafana
+    plugins = /var/lib/grafana/plugins
+    provisioning = /etc/grafana/provisioning
+kind: ConfigMap
+metadata:
+  labels:
+    app: grafana
+    chart: grafana-3.3.10
+    heritage: Tiller
+    release: grafana
+  name: grafana
+  namespace: grafana
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    app: grafana
+    chart: grafana-3.3.10
+    heritage: Tiller
+    release: grafana
+  name: grafana-test
+  namespace: grafana
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: grafana-test
+subjects:
+- kind: ServiceAccount
+  name: grafana-test
+  namespace: grafana
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: grafana
+    chart: grafana-3.3.10
+    heritage: Tiller
+    release: grafana
+  name: grafana
+  namespace: grafana
+spec:
+  ports:
+  - name: service
+    port: 80
+    protocol: TCP
+    targetPort: 3000
+  selector:
+    app: grafana
+    release: grafana
+  type: ClusterIP
+
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: RoleBinding
+metadata:
+  labels:
+    app: grafana
+    chart: grafana-3.3.10
+    heritage: Tiller
+    release: grafana
+  name: grafana
+  namespace: grafana
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: grafana
+subjects:
+- kind: ServiceAccount
+  name: grafana
+  namespace: grafana
+
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    helm.sh/hook: test-success
+  labels:
+    app: grafana
+    chart: grafana-3.3.10
+    heritage: Tiller
+    release: grafana
+  name: grafana-test
+  namespace: grafana
+spec:
+  containers:
+  - command:
+    - /tools/bats/bats
+    - -t
+    - /tests/run.sh
+    image: dduportal/bats:0.4.0
+    name: grafana-test
+    volumeMounts:
+    - mountPath: /tests
+      name: tests
+      readOnly: true
+    - mountPath: /tools
+      name: tools
+  initContainers:
+  - command:
+    - bash
+    - -c
+    - |
+      set -ex
+      # copy bats to tools dir
+      cp -R /usr/local/libexec/ /tools/bats/
+    image: dduportal/bats:0.4.0
+    name: test-framework
+    volumeMounts:
+    - mountPath: /tools
+      name: tools
+  restartPolicy: Never
+  serviceAccountName: grafana-test
+  volumes:
+  - configMap:
+      name: grafana-test
+    name: tests
+  - emptyDir: {}
+    name: tools
 
