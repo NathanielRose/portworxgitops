@@ -1,4 +1,23 @@
 ---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: schema-registry
+    chart: schema-registry-1.1.5
+    heritage: Tiller
+    release: confluent-schema-registry
+  name: confluent-schema-registry
+  namespace: kafka
+spec:
+  ports:
+  - name: schema-registry
+    port: 8081
+  selector:
+    app: schema-registry
+    release: confluent-schema-registry
+
+---
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
@@ -50,23 +69,4 @@ spec:
         resources: {}
         volumeMounts: null
       volumes: null
-
----
-apiVersion: v1
-kind: Service
-metadata:
-  labels:
-    app: schema-registry
-    chart: schema-registry-1.1.5
-    heritage: Tiller
-    release: confluent-schema-registry
-  name: confluent-schema-registry
-  namespace: kafka
-spec:
-  ports:
-  - name: schema-registry
-    port: 8081
-  selector:
-    app: schema-registry
-    release: confluent-schema-registry
 
