@@ -63,6 +63,168 @@ spec:
   - persistentVolumeClaim
 
 ---
+apiVersion: extensions/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  labels:
+    app: grafana
+    chart: grafana-3.3.10
+    heritage: Tiller
+    release: grafana
+  name: grafana-test
+  namespace: grafana
+spec:
+  allowPrivilegeEscalation: true
+  fsGroup:
+    rule: RunAsAny
+  hostIPC: false
+  hostNetwork: false
+  hostPID: false
+  privileged: false
+  runAsUser:
+    rule: RunAsAny
+  seLinux:
+    rule: RunAsAny
+  supplementalGroups:
+    rule: RunAsAny
+  volumes:
+  - configMap
+  - downwardAPI
+  - emptyDir
+  - projected
+  - secret
+
+---
+apiVersion: v1
+data:
+  admin-password: cjEzaFk4NGJuSExuZlJZYzlsQnZ2aHV2TGdBeUpDUFZGeUFtQlgxYw==
+  admin-user: YWRtaW4=
+  ldap-toml: ""
+kind: Secret
+metadata:
+  labels:
+    app: grafana
+    chart: grafana-3.3.10
+    heritage: Tiller
+    release: grafana
+  name: grafana
+  namespace: grafana
+type: Opaque
+
+---
+apiVersion: v1
+data:
+  dashboardproviders.yaml: |
+    apiVersion: 1
+    providers:
+    - disableDeletion: false
+      editable: true
+      folder: null
+      name: default
+      options:
+        path: /var/lib/grafana/dashboards/default
+      orgId: 1
+      type: file
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+    - access: proxy
+      isDefault: true
+      name: Prometheus
+      type: prometheus
+      url: http://prometheus-server.prometheus.svc.cluster.local
+  download_dashboards.sh: |
+    #!/usr/bin/env sh
+    set -euf
+    mkdir -p /var/lib/grafana/dashboards/default
+    curl -sk \
+    --connect-timeout 60 \
+    --max-time 60 \
+    -H "Accept: application/json" \
+    -H "Content-Type: application/json;charset=UTF-8" \https://grafana.com/api/dashboards/6417/revisions/1/download| sed 's|\"datasource\":[^,]*|\"datasource\": \"Prometheus\"|g'\
+    > /var/lib/grafana/dashboards/default/cluster-metrics.json
+    curl -sk \
+    --connect-timeout 60 \
+    --max-time 60 \
+    -H "Accept: application/json" \
+    -H "Content-Type: application/json;charset=UTF-8" \https://grafana.com/api/dashboards/6739/revisions/1/download| sed 's|\"datasource\":[^,]*|\"datasource\": \"Prometheus\"|g'\
+    > /var/lib/grafana/dashboards/default/persistent-volumes.json
+  grafana.ini: |
+    [analytics]
+    check_for_updates = true
+    [grafana_net]
+    url = https://grafana.net
+    [log]
+    mode = console
+    [paths]
+    data = /var/lib/grafana/data
+    logs = /var/log/grafana
+    plugins = /var/lib/grafana/plugins
+    provisioning = /etc/grafana/provisioning
+kind: ConfigMap
+metadata:
+  labels:
+    app: grafana
+    chart: grafana-3.3.10
+    heritage: Tiller
+    release: grafana
+  name: grafana
+  namespace: grafana
+
+---
+apiVersion: v1
+data: null
+kind: ConfigMap
+metadata:
+  labels:
+    app: grafana
+    chart: grafana-3.3.10
+    dashboard-provider: default
+    heritage: Tiller
+    release: grafana
+  name: grafana-dashboards-default
+  namespace: grafana
+
+---
+apiVersion: v1
+data:
+  run.sh: |-
+    @test "Test Health" {
+      url="http://grafana/api/health"
+
+      code=$(curl -s -o /dev/null -I -w "%{http_code}" $url)
+      [ "$code" == "200" ]
+    }
+kind: ConfigMap
+metadata:
+  labels:
+    app: grafana
+    chart: grafana-3.3.10
+    heritage: Tiller
+    release: grafana
+  name: grafana-test
+  namespace: grafana
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    app: grafana
+    chart: grafana-3.3.10
+    heritage: Tiller
+    release: grafana
+  name: grafana
+  namespace: grafana
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 4Gi
+  storageClassName: default
+
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -108,7 +270,7 @@ spec:
         checksum/config: d193c197a676682516036c29a5c9c01c6a35f59c2a3730c712105908efb6d841
         checksum/dashboards-json-config: e64f8ab57c728dce2a2291a12f3a2540c082cb1fe3293db5dcf861f161566a29
         checksum/sc-dashboard-provider-config: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
-        checksum/secret: 34a191ba92e93a2427c24a365574a80c79a4ee108c47e989af65dcde0f90173f
+        checksum/secret: 8b71d8b5ccab47dc95b6be1cf4ddec3c20ff54694a9f34d09ce8f31dd2338e8f
       labels:
         app: grafana
         release: grafana
@@ -211,14 +373,22 @@ spec:
           claimName: grafana
 
 ---
-apiVersion: v1
-kind: ServiceAccount
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
 metadata:
   labels:
     app: grafana
     chart: grafana-3.3.10
     heritage: Tiller
     release: grafana
+  name: grafana-test
+  namespace: grafana
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: grafana-test
+subjects:
+- kind: ServiceAccount
   name: grafana-test
   namespace: grafana
 
@@ -237,59 +407,6 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: grafana
-subjects:
-- kind: ServiceAccount
-  name: grafana
-  namespace: grafana
-
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  labels:
-    app: grafana
-    chart: grafana-3.3.10
-    heritage: Tiller
-    release: grafana
-  name: grafana-clusterrole
-  namespace: grafana
-rules: []
-
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  labels:
-    app: grafana
-    chart: grafana-3.3.10
-    heritage: Tiller
-    release: grafana
-  name: grafana-test
-  namespace: grafana
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: grafana-test
-subjects:
-- kind: ServiceAccount
-  name: grafana-test
-  namespace: grafana
-
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  labels:
-    app: grafana
-    chart: grafana-3.3.10
-    heritage: Tiller
-    release: grafana
-  name: grafana-clusterrolebinding
-  namespace: grafana
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: grafana-clusterrole
 subjects:
 - kind: ServiceAccount
   name: grafana
@@ -318,56 +435,37 @@ spec:
   type: ClusterIP
 
 ---
-apiVersion: rbac.authorization.k8s.io/v1beta1
-kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
 metadata:
   labels:
     app: grafana
     chart: grafana-3.3.10
     heritage: Tiller
     release: grafana
-  name: grafana
+  name: grafana-clusterrolebinding
   namespace: grafana
-rules:
-- apiGroups:
-  - extensions
-  resourceNames:
-  - grafana
-  resources:
-  - podsecuritypolicies
-  verbs:
-  - use
-
----
-apiVersion: v1
-data: null
-kind: ConfigMap
-metadata:
-  labels:
-    app: grafana
-    chart: grafana-3.3.10
-    dashboard-provider: default
-    heritage: Tiller
-    release: grafana
-  name: grafana-dashboards-default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: grafana-clusterrole
+subjects:
+- kind: ServiceAccount
+  name: grafana
   namespace: grafana
 
 ---
-apiVersion: v1
-data:
-  admin-password: c3ZKa0t4U0JXdDFZTDM4ZGhlMEppWk5sc0t2ekRzclByNlBZN2RQZQ==
-  admin-user: YWRtaW4=
-  ldap-toml: ""
-kind: Secret
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
 metadata:
   labels:
     app: grafana
     chart: grafana-3.3.10
     heritage: Tiller
     release: grafana
-  name: grafana
+  name: grafana-clusterrole
   namespace: grafana
-type: Opaque
+rules: []
 
 ---
 apiVersion: v1
@@ -419,76 +517,8 @@ spec:
     name: tools
 
 ---
-apiVersion: v1
-data:
-  run.sh: |-
-    @test "Test Health" {
-      url="http://grafana/api/health"
-
-      code=$(curl -s -o /dev/null -I -w "%{http_code}" $url)
-      [ "$code" == "200" ]
-    }
-kind: ConfigMap
-metadata:
-  labels:
-    app: grafana
-    chart: grafana-3.3.10
-    heritage: Tiller
-    release: grafana
-  name: grafana-test
-  namespace: grafana
-
----
-apiVersion: v1
-data:
-  dashboardproviders.yaml: |
-    apiVersion: 1
-    providers:
-    - disableDeletion: false
-      editable: true
-      folder: null
-      name: default
-      options:
-        path: /var/lib/grafana/dashboards/default
-      orgId: 1
-      type: file
-  datasources.yaml: |
-    apiVersion: 1
-    datasources:
-    - access: proxy
-      isDefault: true
-      name: Prometheus
-      type: prometheus
-      url: http://prometheus-server.prometheus.svc.cluster.local
-  download_dashboards.sh: |
-    #!/usr/bin/env sh
-    set -euf
-    mkdir -p /var/lib/grafana/dashboards/default
-    curl -sk \
-    --connect-timeout 60 \
-    --max-time 60 \
-    -H "Accept: application/json" \
-    -H "Content-Type: application/json;charset=UTF-8" \https://grafana.com/api/dashboards/6417/revisions/1/download| sed 's|\"datasource\":[^,]*|\"datasource\": \"Prometheus\"|g'\
-    > /var/lib/grafana/dashboards/default/cluster-metrics.json
-    curl -sk \
-    --connect-timeout 60 \
-    --max-time 60 \
-    -H "Accept: application/json" \
-    -H "Content-Type: application/json;charset=UTF-8" \https://grafana.com/api/dashboards/6739/revisions/1/download| sed 's|\"datasource\":[^,]*|\"datasource\": \"Prometheus\"|g'\
-    > /var/lib/grafana/dashboards/default/persistent-volumes.json
-  grafana.ini: |
-    [analytics]
-    check_for_updates = true
-    [grafana_net]
-    url = https://grafana.net
-    [log]
-    mode = console
-    [paths]
-    data = /var/lib/grafana/data
-    logs = /var/log/grafana
-    plugins = /var/lib/grafana/plugins
-    provisioning = /etc/grafana/provisioning
-kind: ConfigMap
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: Role
 metadata:
   labels:
     app: grafana
@@ -497,29 +527,19 @@ metadata:
     release: grafana
   name: grafana
   namespace: grafana
-
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  labels:
-    app: grafana
-    chart: grafana-3.3.10
-    heritage: Tiller
-    release: grafana
-  name: grafana
-  namespace: grafana
-spec:
-  accessModes:
-  - ReadWriteOnce
+rules:
+- apiGroups:
+  - extensions
+  resourceNames:
+  - grafana
   resources:
-    requests:
-      storage: 4Gi
-  storageClassName: default
+  - podsecuritypolicies
+  verbs:
+  - use
 
 ---
-apiVersion: extensions/v1beta1
-kind: PodSecurityPolicy
+apiVersion: v1
+kind: ServiceAccount
 metadata:
   labels:
     app: grafana
@@ -528,24 +548,4 @@ metadata:
     release: grafana
   name: grafana-test
   namespace: grafana
-spec:
-  allowPrivilegeEscalation: true
-  fsGroup:
-    rule: RunAsAny
-  hostIPC: false
-  hostNetwork: false
-  hostPID: false
-  privileged: false
-  runAsUser:
-    rule: RunAsAny
-  seLinux:
-    rule: RunAsAny
-  supplementalGroups:
-    rule: RunAsAny
-  volumes:
-  - configMap
-  - downwardAPI
-  - emptyDir
-  - projected
-  - secret
 
