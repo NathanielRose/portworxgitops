@@ -5,8 +5,10 @@ metadata:
   name: kafka
   labels:
     app: fabrikate-kafka
+
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
   name: portworx
+

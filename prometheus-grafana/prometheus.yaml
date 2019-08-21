@@ -212,6 +212,116 @@ metadata:
   namespace: prometheus
 
 ---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRole
+metadata:
+  labels:
+    app: prometheus
+    chart: prometheus-9.1.0
+    component: alertmanager
+    heritage: Tiller
+    release: prometheus
+  name: prometheus-alertmanager
+  namespace: prometheus
+rules: null
+
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRole
+metadata:
+  labels:
+    app: prometheus
+    chart: prometheus-9.1.0
+    component: kube-state-metrics
+    heritage: Tiller
+    release: prometheus
+  name: prometheus-kube-state-metrics
+  namespace: prometheus
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  - nodes
+  - persistentvolumeclaims
+  - pods
+  - services
+  - resourcequotas
+  - replicationcontrollers
+  - limitranges
+  - persistentvolumeclaims
+  - persistentvolumes
+  - endpoints
+  - secrets
+  - configmaps
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - extensions
+  resources:
+  - daemonsets
+  - deployments
+  - ingresses
+  - replicasets
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - daemonsets
+  - deployments
+  - statefulsets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - batch
+  resources:
+  - cronjobs
+  - jobs
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - autoscaling
+  resources:
+  - horizontalpodautoscalers
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - policy
+  resources:
+  - poddisruptionbudgets
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - certificates.k8s.io
+  resources:
+  - certificatesigningrequests
+  verbs:
+  - list
+  - watch
+
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRole
+metadata:
+  labels:
+    app: prometheus
+    chart: prometheus-9.1.0
+    component: pushgateway
+    heritage: Tiller
+    release: prometheus
+  name: prometheus-pushgateway
+  namespace: prometheus
+rules: null
+
+---
 apiVersion: v1
 data:
   alerts: |
@@ -1234,7 +1344,7 @@ metadata:
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1beta1
-kind: ClusterRole
+kind: ClusterRoleBinding
 metadata:
   labels:
     app: prometheus
@@ -1244,103 +1354,14 @@ metadata:
     release: prometheus
   name: prometheus-alertmanager
   namespace: prometheus
-rules: null
-
----
-apiVersion: rbac.authorization.k8s.io/v1beta1
-kind: ClusterRole
-metadata:
-  labels:
-    app: prometheus
-    chart: prometheus-9.1.0
-    component: kube-state-metrics
-    heritage: Tiller
-    release: prometheus
-  name: prometheus-kube-state-metrics
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: prometheus-alertmanager
+subjects:
+- kind: ServiceAccount
+  name: prometheus-alertmanager
   namespace: prometheus
-rules:
-- apiGroups:
-  - ""
-  resources:
-  - namespaces
-  - nodes
-  - persistentvolumeclaims
-  - pods
-  - services
-  - resourcequotas
-  - replicationcontrollers
-  - limitranges
-  - persistentvolumeclaims
-  - persistentvolumes
-  - endpoints
-  - secrets
-  - configmaps
-  verbs:
-  - list
-  - watch
-- apiGroups:
-  - extensions
-  resources:
-  - daemonsets
-  - deployments
-  - ingresses
-  - replicasets
-  verbs:
-  - list
-  - watch
-- apiGroups:
-  - apps
-  resources:
-  - daemonsets
-  - deployments
-  - statefulsets
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - batch
-  resources:
-  - cronjobs
-  - jobs
-  verbs:
-  - list
-  - watch
-- apiGroups:
-  - autoscaling
-  resources:
-  - horizontalpodautoscalers
-  verbs:
-  - list
-  - watch
-- apiGroups:
-  - policy
-  resources:
-  - poddisruptionbudgets
-  verbs:
-  - list
-  - watch
-- apiGroups:
-  - certificates.k8s.io
-  resources:
-  - certificatesigningrequests
-  verbs:
-  - list
-  - watch
-
----
-apiVersion: rbac.authorization.k8s.io/v1beta1
-kind: ClusterRole
-metadata:
-  labels:
-    app: prometheus
-    chart: prometheus-9.1.0
-    component: pushgateway
-    heritage: Tiller
-    release: prometheus
-  name: prometheus-pushgateway
-  namespace: prometheus
-rules: null
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1beta1
@@ -1382,48 +1403,6 @@ rules:
   - /metrics
   verbs:
   - get
-
----
-apiVersion: rbac.authorization.k8s.io/v1beta1
-kind: ClusterRoleBinding
-metadata:
-  labels:
-    app: prometheus
-    chart: prometheus-9.1.0
-    component: alertmanager
-    heritage: Tiller
-    release: prometheus
-  name: prometheus-alertmanager
-  namespace: prometheus
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: prometheus-alertmanager
-subjects:
-- kind: ServiceAccount
-  name: prometheus-alertmanager
-  namespace: prometheus
-
----
-apiVersion: rbac.authorization.k8s.io/v1beta1
-kind: ClusterRoleBinding
-metadata:
-  labels:
-    app: prometheus
-    chart: prometheus-9.1.0
-    component: kube-state-metrics
-    heritage: Tiller
-    release: prometheus
-  name: prometheus-kube-state-metrics
-  namespace: prometheus
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: prometheus-kube-state-metrics
-subjects:
-- kind: ServiceAccount
-  name: prometheus-kube-state-metrics
-  namespace: prometheus
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1beta1
@@ -1597,62 +1576,44 @@ spec:
 
 ---
 apiVersion: extensions/v1beta1
-kind: DaemonSet
+kind: Deployment
 metadata:
   labels:
     app: prometheus
     chart: prometheus-9.1.0
-    component: node-exporter
+    component: kube-state-metrics
     heritage: Tiller
     release: prometheus
-  name: prometheus-node-exporter
+  name: prometheus-kube-state-metrics
   namespace: prometheus
 spec:
+  replicas: 1
   selector:
     matchLabels:
       app: prometheus
-      component: node-exporter
+      component: kube-state-metrics
       release: prometheus
   template:
     metadata:
       labels:
         app: prometheus
         chart: prometheus-9.1.0
-        component: node-exporter
+        component: kube-state-metrics
         heritage: Tiller
         release: prometheus
     spec:
       containers:
-      - args:
-        - --path.procfs=/host/proc
-        - --path.sysfs=/host/sys
-        image: prom/node-exporter:v0.18.0
+      - image: quay.io/coreos/kube-state-metrics:v1.6.0
         imagePullPolicy: IfNotPresent
-        name: prometheus-node-exporter
+        name: prometheus-kube-state-metrics
         ports:
-        - containerPort: 9100
-          hostPort: 9100
+        - containerPort: 8080
           name: metrics
         resources: {}
-        volumeMounts:
-        - mountPath: /host/proc
-          name: proc
-          readOnly: true
-        - mountPath: /host/sys
-          name: sys
-          readOnly: true
-      hostNetwork: true
-      hostPID: true
-      serviceAccountName: prometheus-node-exporter
-      volumes:
-      - hostPath:
-          path: /proc
-        name: proc
-      - hostPath:
-          path: /sys
-        name: sys
-  updateStrategy:
-    type: RollingUpdate
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+      serviceAccountName: prometheus-kube-state-metrics
 
 ---
 apiVersion: extensions/v1beta1
@@ -1744,47 +1705,6 @@ metadata:
   labels:
     app: prometheus
     chart: prometheus-9.1.0
-    component: kube-state-metrics
-    heritage: Tiller
-    release: prometheus
-  name: prometheus-kube-state-metrics
-  namespace: prometheus
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: prometheus
-      component: kube-state-metrics
-      release: prometheus
-  template:
-    metadata:
-      labels:
-        app: prometheus
-        chart: prometheus-9.1.0
-        component: kube-state-metrics
-        heritage: Tiller
-        release: prometheus
-    spec:
-      containers:
-      - image: quay.io/coreos/kube-state-metrics:v1.6.0
-        imagePullPolicy: IfNotPresent
-        name: prometheus-kube-state-metrics
-        ports:
-        - containerPort: 8080
-          name: metrics
-        resources: {}
-      securityContext:
-        runAsNonRoot: true
-        runAsUser: 65534
-      serviceAccountName: prometheus-kube-state-metrics
-
----
-apiVersion: extensions/v1beta1
-kind: Deployment
-metadata:
-  labels:
-    app: prometheus
-    chart: prometheus-9.1.0
     component: pushgateway
     heritage: Tiller
     release: prometheus
@@ -1824,4 +1744,84 @@ spec:
         runAsNonRoot: true
         runAsUser: 65534
       serviceAccountName: prometheus-pushgateway
+
+---
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  labels:
+    app: prometheus
+    chart: prometheus-9.1.0
+    component: node-exporter
+    heritage: Tiller
+    release: prometheus
+  name: prometheus-node-exporter
+  namespace: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: prometheus
+      component: node-exporter
+      release: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+        chart: prometheus-9.1.0
+        component: node-exporter
+        heritage: Tiller
+        release: prometheus
+    spec:
+      containers:
+      - args:
+        - --path.procfs=/host/proc
+        - --path.sysfs=/host/sys
+        image: prom/node-exporter:v0.18.0
+        imagePullPolicy: IfNotPresent
+        name: prometheus-node-exporter
+        ports:
+        - containerPort: 9100
+          hostPort: 9100
+          name: metrics
+        resources: {}
+        volumeMounts:
+        - mountPath: /host/proc
+          name: proc
+          readOnly: true
+        - mountPath: /host/sys
+          name: sys
+          readOnly: true
+      hostNetwork: true
+      hostPID: true
+      serviceAccountName: prometheus-node-exporter
+      volumes:
+      - hostPath:
+          path: /proc
+        name: proc
+      - hostPath:
+          path: /sys
+        name: sys
+  updateStrategy:
+    type: RollingUpdate
+
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app: prometheus
+    chart: prometheus-9.1.0
+    component: kube-state-metrics
+    heritage: Tiller
+    release: prometheus
+  name: prometheus-kube-state-metrics
+  namespace: prometheus
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: prometheus-kube-state-metrics
+subjects:
+- kind: ServiceAccount
+  name: prometheus-kube-state-metrics
+  namespace: prometheus
 

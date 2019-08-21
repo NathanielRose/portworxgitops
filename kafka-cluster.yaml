@@ -208,6 +208,7 @@ spec:
   entityOperator:
     topicOperator: {}
     userOperator: {}
+
 ---
 
 # Source: kafka-cluster/templates/kafka-connect.yaml
@@ -241,6 +242,7 @@ spec:
       name: "kafka_connect_connect_worker_metrics_$1"
     - pattern : "kafka.connect<type=connect-metrics, client-id=([^:]+)><>([^:]+)"
       name: "kafka_connect_connect_metrics_$1_$2"
+
 ---
 
 # Source: kafka-cluster/templates/kafka-connect-user.yaml
@@ -262,6 +264,7 @@ spec:
           name: kconnect-mongodb-topic
           patternType: literal
         operation: All
+
 ---
 
 # Source: kafka-cluster/templates/kafka-networkpolicies.yaml
@@ -338,4 +341,5 @@ spec:
     - podSelector:
         matchLabels:
           app: logstash
+
 

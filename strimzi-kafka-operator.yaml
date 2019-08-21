@@ -104,6 +104,77 @@ spec:
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app: strimzi
+    chart: strimzi-kafka-operator-0.13.0
+    component: role-binding
+    heritage: Tiller
+    release: strimzi-kafka-operator
+  name: strimzi-cluster-operator
+  namespace: kafka
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: strimzi-cluster-operator-global
+subjects:
+- kind: ServiceAccount
+  name: strimzi-cluster-operator
+  namespace: kafka
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app: strimzi
+    chart: strimzi-kafka-operator-0.13.0
+    component: role
+    heritage: Tiller
+    release: strimzi-kafka-operator
+  name: strimzi-cluster-operator-global
+  namespace: kafka
+rules:
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - clusterrolebindings
+  verbs:
+  - get
+  - create
+  - delete
+  - patch
+  - update
+- apiGroups:
+  - storage.k8s.io
+  resources:
+  - storageclasses
+  verbs:
+  - get
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app: strimzi
+    chart: strimzi-kafka-operator-0.13.0
+    component: broker-role
+    heritage: Tiller
+    release: strimzi-kafka-operator
+  name: strimzi-kafka-broker
+  namespace: kafka
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - get
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
@@ -383,53 +454,24 @@ rules:
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+kind: ClusterRoleBinding
 metadata:
   labels:
     app: strimzi
     chart: strimzi-kafka-operator-0.13.0
-    component: role
+    component: broker-role-binding
     heritage: Tiller
     release: strimzi-kafka-operator
-  name: strimzi-cluster-operator-global
+  name: strimzi-cluster-operator-kafka-broker-delegation
   namespace: kafka
-rules:
-- apiGroups:
-  - rbac.authorization.k8s.io
-  resources:
-  - clusterrolebindings
-  verbs:
-  - get
-  - create
-  - delete
-  - patch
-  - update
-- apiGroups:
-  - storage.k8s.io
-  resources:
-  - storageclasses
-  verbs:
-  - get
-
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  labels:
-    app: strimzi
-    chart: strimzi-kafka-operator-0.13.0
-    component: broker-role
-    heritage: Tiller
-    release: strimzi-kafka-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
   name: strimzi-kafka-broker
+subjects:
+- kind: ServiceAccount
+  name: strimzi-cluster-operator
   namespace: kafka
-rules:
-- apiGroups:
-  - ""
-  resources:
-  - nodes
-  verbs:
-  - get
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -489,6 +531,27 @@ rules:
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    app: strimzi
+    chart: strimzi-kafka-operator-0.13.0
+    component: role-binding
+    heritage: Tiller
+    release: strimzi-kafka-operator
+  name: strimzi-cluster-operator
+  namespace: kafka
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: strimzi-cluster-operator-namespaced
+subjects:
+- kind: ServiceAccount
+  name: strimzi-cluster-operator
+  namespace: kafka
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
@@ -521,41 +584,20 @@ rules:
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
+kind: RoleBinding
 metadata:
   labels:
     app: strimzi
     chart: strimzi-kafka-operator-0.13.0
-    component: role-binding
+    component: entity-operator-role-binding
     heritage: Tiller
     release: strimzi-kafka-operator
-  name: strimzi-cluster-operator
+  name: strimzi-cluster-operator-entity-operator-delegation
   namespace: kafka
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: strimzi-cluster-operator-global
-subjects:
-- kind: ServiceAccount
-  name: strimzi-cluster-operator
-  namespace: kafka
-
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  labels:
-    app: strimzi
-    chart: strimzi-kafka-operator-0.13.0
-    component: broker-role-binding
-    heritage: Tiller
-    release: strimzi-kafka-operator
-  name: strimzi-cluster-operator-kafka-broker-delegation
-  namespace: kafka
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: strimzi-kafka-broker
+  name: strimzi-entity-operator
 subjects:
 - kind: ServiceAccount
   name: strimzi-cluster-operator
@@ -568,15 +610,15 @@ metadata:
   labels:
     app: strimzi
     chart: strimzi-kafka-operator-0.13.0
-    component: role-binding
+    component: topic-operator-role-binding
     heritage: Tiller
     release: strimzi-kafka-operator
-  name: strimzi-cluster-operator
+  name: strimzi-cluster-operator-topic-operator-delegation
   namespace: kafka
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: strimzi-cluster-operator-namespaced
+  name: strimzi-topic-operator
 subjects:
 - kind: ServiceAccount
   name: strimzi-cluster-operator
@@ -1108,81 +1150,6 @@ spec:
   - name: v1alpha1
     served: true
     storage: true
-
----
-apiVersion: apiextensions.k8s.io/v1beta1
-kind: CustomResourceDefinition
-metadata:
-  labels:
-    app: strimzi
-    chart: strimzi-kafka-operator-0.13.0
-    component: kafkatopics.kafka.strimzi.io-crd
-    heritage: Tiller
-    release: strimzi-kafka-operator
-  name: kafkatopics.kafka.strimzi.io
-  namespace: kafka
-spec:
-  additionalPrinterColumns:
-  - JSONPath: .spec.partitions
-    description: The desired number of partitions in the topic
-    name: Partitions
-    priority: 0
-    type: integer
-  - JSONPath: .spec.replicas
-    description: The desired number of replicas of each partition
-    name: Replication factor
-    priority: 0
-    type: integer
-  group: kafka.strimzi.io
-  names:
-    kind: KafkaTopic
-    listKind: KafkaTopicList
-    plural: kafkatopics
-    shortNames:
-    - kt
-    singular: kafkatopic
-  scope: Namespaced
-  validation:
-    openAPIV3Schema:
-      properties:
-        spec:
-          properties:
-            config:
-              type: object
-            partitions:
-              minimum: 1
-              type: integer
-            replicas:
-              maximum: 32767
-              minimum: 1
-              type: integer
-            topicName:
-              type: string
-          required:
-          - partitions
-          - replicas
-          type: object
-  version: v1beta1
-  versions:
-  - name: v1beta1
-    served: true
-    storage: true
-  - name: v1alpha1
-    served: true
-    storage: false
-
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  labels:
-    app: strimzi
-    chart: strimzi-kafka-operator-0.13.0
-    component: service-account
-    heritage: Tiller
-    release: strimzi-kafka-operator
-  name: strimzi-cluster-operator
-  namespace: kafka
 
 ---
 apiVersion: apiextensions.k8s.io/v1beta1
@@ -2003,46 +1970,66 @@ spec:
     storage: false
 
 ---
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
 metadata:
   labels:
     app: strimzi
     chart: strimzi-kafka-operator-0.13.0
-    component: entity-operator-role-binding
+    component: kafkatopics.kafka.strimzi.io-crd
     heritage: Tiller
     release: strimzi-kafka-operator
-  name: strimzi-cluster-operator-entity-operator-delegation
+  name: kafkatopics.kafka.strimzi.io
   namespace: kafka
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: strimzi-entity-operator
-subjects:
-- kind: ServiceAccount
-  name: strimzi-cluster-operator
-  namespace: kafka
-
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  labels:
-    app: strimzi
-    chart: strimzi-kafka-operator-0.13.0
-    component: topic-operator-role-binding
-    heritage: Tiller
-    release: strimzi-kafka-operator
-  name: strimzi-cluster-operator-topic-operator-delegation
-  namespace: kafka
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: strimzi-topic-operator
-subjects:
-- kind: ServiceAccount
-  name: strimzi-cluster-operator
-  namespace: kafka
+spec:
+  additionalPrinterColumns:
+  - JSONPath: .spec.partitions
+    description: The desired number of partitions in the topic
+    name: Partitions
+    priority: 0
+    type: integer
+  - JSONPath: .spec.replicas
+    description: The desired number of replicas of each partition
+    name: Replication factor
+    priority: 0
+    type: integer
+  group: kafka.strimzi.io
+  names:
+    kind: KafkaTopic
+    listKind: KafkaTopicList
+    plural: kafkatopics
+    shortNames:
+    - kt
+    singular: kafkatopic
+  scope: Namespaced
+  validation:
+    openAPIV3Schema:
+      properties:
+        spec:
+          properties:
+            config:
+              type: object
+            partitions:
+              minimum: 1
+              type: integer
+            replicas:
+              maximum: 32767
+              minimum: 1
+              type: integer
+            topicName:
+              type: string
+          required:
+          - partitions
+          - replicas
+          type: object
+  version: v1beta1
+  versions:
+  - name: v1beta1
+    served: true
+    storage: true
+  - name: v1alpha1
+    served: true
+    storage: false
 
 ---
 apiVersion: apiextensions.k8s.io/v1beta1
@@ -2971,6 +2958,19 @@ spec:
   - name: v1alpha1
     served: true
     storage: false
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app: strimzi
+    chart: strimzi-kafka-operator-0.13.0
+    component: service-account
+    heritage: Tiller
+    release: strimzi-kafka-operator
+  name: strimzi-cluster-operator
+  namespace: kafka
 
 ---
 apiVersion: apiextensions.k8s.io/v1beta1
