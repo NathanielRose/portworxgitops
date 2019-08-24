@@ -939,8 +939,6 @@ spec:
           value: v2
         - name: API_SERVER
           value: http://lighthouse-new.portworx.com
-        - name: ""
-          value: ""
         image: portworx/oci-monitor:2.1.3
         imagePullPolicy: Always
         livenessProbe:
