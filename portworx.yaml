@@ -32,57 +32,6 @@ spec:
       restartPolicy: Never
 
 ---
-apiVersion: storage.k8s.io/v1beta1
-kind: StorageClass
-metadata:
-  annotations:
-    params/aggregation_level: Specifies the number of replication sets the volume
-      can be aggregated from
-    params/block_size: Block size
-    params/docs: https://docs.portworx.com/scheduler/kubernetes/dynamic-provisioning.html
-    params/fg: This option enforces volume group policy. If a volume belonging to
-      a group cannot find nodes for it's replication sets which don't have other volumes
-      of same group, the volume creation will fail.
-    params/fs: 'Filesystem to be laid out: none|xfs|ext4 '
-    params/group: The group a volume should belong too. Portworx will restrict replication
-      sets of volumes of the same group on different nodes. If the force group option
-      'fg' is set to true, the volume group rule will be strictly enforced. By default,
-      it's not strictly enforced.
-    params/io_profile: IO Profile can be used to override the I/O algorithm Portworx
-      uses for the volumes. Supported values are [db](/maintain/performance/tuning.html#db),
-      [sequential](/maintain/performance/tuning.html#sequential), [random](/maintain/performance/tuning.html#random),
-      [cms](/maintain/performance/tuning.html#cms)
-    params/journal: Flag to indicate if you want to use journal device for the volume's
-      metadata. This will use the journal device that you used when installing Portworx.
-      As of PX version 1.3, it is recommended to use a journal device to absorb PX
-      metadata writes
-    params/label: List of comma-separated name=value pairs to apply to the Portworx
-      volume
-    params/nodes: Comma-separated Portworx Node ID's to use for replication sets of
-      the volume
-    params/priority_io: 'IO Priority: low|medium|high'
-    params/repl: 'Replication factor for the volume: 1|2|3'
-    params/shared: 'Flag to create a globally shared namespace volume which can be
-      used by multiple pods : true|false'
-    params/snap_schedule: 'Snapshot schedule. Following are the accepted formats:  periodic=_mins_,_snaps-to-keep_
-      daily=_hh:mm_,_snaps-to-keep_ weekly=_weekday@hh:mm_,_snaps-to-keep_  monthly=_day@hh:mm_,_snaps-to-keep_
-      _snaps-to-keep_ is optional. Periodic, Daily, Weekly and Monthly keep last 5,
-      7, 5 and 12 snapshots by default respectively'
-    params/sticky: Flag to create sticky volumes that cannot be deleted until the
-      flag is disabled
-  name: portworx-null-sc
-  namespace: portworx
-parameters: null
-provisioner: kubernetes.io/portworx-volume
-
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: portworx
-  namespace: portworx
-
----
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -99,20 +48,6 @@ rules:
   - create
   - update
   - patch
-
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: px-account
-  namespace: kube-system
-
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: portworx-pvc-controller-account
-  namespace: kube-system
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -173,27 +108,6 @@ kind: ConfigMap
 metadata:
   name: stork-config
   namespace: kube-system
-
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: stork-account
-  namespace: kube-system
-
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: stork-role
-  namespace: portworx
-rules:
-- apiGroups:
-  - '*'
-  resources:
-  - '*'
-  verbs:
-  - '*'
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -309,17 +223,10 @@ rules:
 
 ---
 apiVersion: v1
-kind: Service
+kind: Namespace
 metadata:
-  name: stork-service
-  namespace: kube-system
-spec:
-  ports:
-  - port: 8099
-    protocol: TCP
-    targetPort: 8099
-  selector:
-    name: stork
+  name: portworx
+  namespace: portworx
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -372,6 +279,43 @@ rules:
   - use
 
 ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: stork-account
+  namespace: kube-system
+
+---
+apiVersion: storage.k8s.io/v1beta1
+kind: StorageClass
+metadata:
+  name: portworx-db2-sc
+  namespace: portworx
+parameters:
+  block_size: 512b
+  io_profile: db
+  repl: "3"
+provisioner: kubernetes.io/portworx-volume
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  annotations:
+    helm.sh/hook: pre-install,pre-delete,post-delete
+    helm.sh/hook-delete-policy: before-hook-creation
+  name: portworx-hook
+  namespace: portworx
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: portworx-hook
+subjects:
+- kind: ServiceAccount
+  name: portworx-hook
+  namespace: kube-system
+
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -403,72 +347,6 @@ metadata:
   namespace: kube-system
 
 ---
-apiVersion: extensions/v1beta1
-kind: Deployment
-metadata:
-  annotations:
-    scheduler.alpha.kubernetes.io/critical-pod: ""
-  labels:
-    tier: control-plane
-  name: stork
-  namespace: kube-system
-spec:
-  replicas: 3
-  strategy:
-    rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 1
-    type: RollingUpdate
-  template:
-    metadata:
-      annotations:
-        scheduler.alpha.kubernetes.io/critical-pod: ""
-      labels:
-        name: stork
-        tier: control-plane
-    spec:
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-            - matchExpressions:
-              - key: px/enabled
-                operator: NotIn
-                values:
-                - "false"
-        podAntiAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-          - labelSelector:
-              matchExpressions:
-              - key: name
-                operator: In
-                values:
-                - stork
-            topologyKey: kubernetes.io/hostname
-      containers:
-      - command:
-        - /stork
-        - --driver=pxd
-        - --verbose
-        - --leader-elect=true
-        image: openstorage/stork:2.2.4
-        imagePullPolicy: Always
-        name: stork
-        resources:
-          requests:
-            cpu: "0.1"
-      hostPID: false
-      serviceAccountName: stork-account
-
----
-apiVersion: storage.k8s.io/v1
-kind: StorageClass
-metadata:
-  name: stork-snapshot-sc
-  namespace: portworx
-provisioner: stork-snapshot
-
----
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -487,46 +365,6 @@ rules:
   - get
   - update
   - list
-
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: stork-scheduler-account
-  namespace: kube-system
-
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: portworx-pvc-controller-role-binding
-  namespace: portworx
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: portworx-pvc-controller-role
-subjects:
-- kind: ServiceAccount
-  name: portworx-pvc-controller-account
-  namespace: kube-system
-
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  annotations:
-    helm.sh/hook: pre-install,pre-delete,post-delete
-    helm.sh/hook-delete-policy: before-hook-creation
-  name: portworx-hook
-  namespace: portworx
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: portworx-hook
-subjects:
-- kind: ServiceAccount
-  name: portworx-hook
-  namespace: kube-system
 
 ---
 apiVersion: v1
@@ -559,7 +397,7 @@ apiVersion: extensions/v1beta1
 kind: DaemonSet
 metadata:
   annotations:
-    portworx.com/helm-vars: chart="portworx-1.0.0",AKSInstall="true",clusterName="mycluster",consul="map[token:none]",dataInterface="none",deploymentType="oci",drives="type=Premium_LRS,size=150",envVars="API_SERVER=http://lighthouse-new.portworx.com",etcd="map[ca:none
+    portworx.com/helm-vars: chart="portworx-1.0.0",AKSInstall="true",clusterName="mycluster",consul="map[token:none]",dataInterface="none",deploymentType="oci",drives="type=Premium_LRS,size=150",etcd="map[ca:none
       cert:none certPath:none credentials:none:none key:none]",imageType="none",imageVersion="2.1.3",internalKVDB="true",lighthouse="true",lighthouseStorkConnectorVersion="0.1",lighthouseSyncVersion="0.3",lighthouseVersion="2.0.4",managementInterface="none",secretType="k8s",serviceAccount="map[hook:map[create:true
       name:<nil>]]",stork="true",storkVersion="2.2.4"
     portworx.com/install-source: helm/Tiller-r0
@@ -615,8 +453,6 @@ spec:
               name: px-azure
         - name: PX_TEMPLATE_VERSION
           value: v2
-        - name: API_SERVER
-          value: http://lighthouse-new.portworx.com
         image: portworx/oci-monitor:2.1.3
         imagePullPolicy: Always
         livenessProbe:
@@ -701,84 +537,6 @@ spec:
     type: RollingUpdate
 
 ---
-apiVersion: batch/v1
-kind: Job
-metadata:
-  annotations:
-    helm.sh/hook: post-delete
-    helm.sh/hook-delete-policy: before-hook-creation
-    helm.sh/hook-weight: "-5"
-  labels:
-    app.kubernetes.io/instance: portworx
-    app.kubernetes.io/managed-by: Tiller
-    chart: portworx-1.0.0
-    heritage: Tiller
-    release: portworx
-  name: px-hook-postdelete-unlabelnode
-  namespace: kube-system
-spec:
-  backoffLimit: 0
-  template:
-    spec:
-      containers:
-      - args:
-        - label
-        - nodes
-        - --all
-        - px/enabled-
-        image: lachlanevenson/k8s-kubectl:v1.9.0
-        name: post-delete-job
-      restartPolicy: Never
-      serviceAccountName: portworx-hook
-
----
-apiVersion: batch/v1
-kind: Job
-metadata:
-  annotations:
-    helm.sh/hook: pre-delete
-    helm.sh/hook-delete-policy: before-hook-creation
-    helm.sh/hook-weight: "-5"
-  labels:
-    app.kubernetes.io/instance: portworx
-    app.kubernetes.io/managed-by: Tiller
-    chart: portworx-1.0.0
-    heritage: Tiller
-    release: portworx
-  name: px-hook-predelete-nodelabel
-  namespace: kube-system
-spec:
-  backoffLimit: 0
-  template:
-    spec:
-      containers:
-      - args:
-        - label
-        - nodes
-        - --all
-        - px/enabled=remove
-        - --overwrite
-        image: lachlanevenson/k8s-kubectl:v1.9.0
-        name: pre-delete-job
-      restartPolicy: Never
-      serviceAccountName: portworx-hook
-
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: stork-role-binding
-  namespace: portworx
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: stork-role
-subjects:
-- kind: ServiceAccount
-  name: stork-account
-  namespace: kube-system
-
----
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -822,6 +580,192 @@ rules:
   - create
   - update
   - delete
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: portworx-pvc-controller-role-binding
+  namespace: portworx
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: portworx-pvc-controller-role
+subjects:
+- kind: ServiceAccount
+  name: portworx-pvc-controller-account
+  namespace: kube-system
+
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  annotations:
+    scheduler.alpha.kubernetes.io/critical-pod: ""
+  labels:
+    tier: control-plane
+  name: portworx-pvc-controller
+  namespace: kube-system
+spec:
+  replicas: 3
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:
+        scheduler.alpha.kubernetes.io/critical-pod: ""
+      labels:
+        name: portworx-pvc-controller
+        tier: control-plane
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: px/enabled
+                operator: NotIn
+                values:
+                - "false"
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: name
+                operator: In
+                values:
+                - portworx-pvc-controller
+            topologyKey: kubernetes.io/hostname
+      containers:
+      - command:
+        - kube-controller-manager
+        - --leader-elect=true
+        - --address=0.0.0.0
+        - --controllers=persistentvolume-binder
+        - --use-service-account-credentials=true
+        - --leader-elect-resource-lock=configmaps
+        image: gcr.io/google_containers/kube-controller-manager-amd64:v1.9.0
+        livenessProbe:
+          failureThreshold: 8
+          httpGet:
+            host: 127.0.0.1
+            path: /healthz
+            port: 10252
+            scheme: HTTP
+          initialDelaySeconds: 15
+          timeoutSeconds: 15
+        name: portworx-pvc-controller-manager
+        resources:
+          requests:
+            cpu: 200m
+      hostNetwork: true
+      serviceAccountName: portworx-pvc-controller-account
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: px-lh-account
+  namespace: kube-system
+
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  annotations:
+    helm.sh/hook: post-delete
+    helm.sh/hook-delete-policy: before-hook-creation
+    helm.sh/hook-weight: "-5"
+  labels:
+    app.kubernetes.io/instance: portworx
+    app.kubernetes.io/managed-by: Tiller
+    chart: portworx-1.0.0
+    heritage: Tiller
+    release: portworx
+  name: px-hook-postdelete-unlabelnode
+  namespace: kube-system
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      containers:
+      - args:
+        - label
+        - nodes
+        - --all
+        - px/enabled-
+        image: lachlanevenson/k8s-kubectl:v1.9.0
+        name: post-delete-job
+      restartPolicy: Never
+      serviceAccountName: portworx-hook
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    tier: px-web-console
+  name: px-lighthouse
+  namespace: kube-system
+spec:
+  ports:
+  - name: http
+    port: 80
+  - name: https
+    port: 443
+  selector:
+    tier: px-web-console
+  type: NodePort
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: px-lh-role-binding
+  namespace: kube-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: px-lh-role
+subjects:
+- kind: ServiceAccount
+  name: px-lh-account
+  namespace: kube-system
+
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  annotations:
+    helm.sh/hook: pre-delete
+    helm.sh/hook-delete-policy: before-hook-creation
+    helm.sh/hook-weight: "-5"
+  labels:
+    app.kubernetes.io/instance: portworx
+    app.kubernetes.io/managed-by: Tiller
+    chart: portworx-1.0.0
+    heritage: Tiller
+    release: portworx
+  name: px-hook-predelete-nodelabel
+  namespace: kube-system
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      containers:
+      - args:
+        - label
+        - nodes
+        - --all
+        - px/enabled=remove
+        - --overwrite
+        image: lachlanevenson/k8s-kubectl:v1.9.0
+        name: pre-delete-job
+      restartPolicy: Never
+      serviceAccountName: portworx-hook
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -953,207 +897,54 @@ rules:
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: stork-role
+  namespace: portworx
+rules:
+- apiGroups:
+  - '*'
+  resources:
+  - '*'
+  verbs:
+  - '*'
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: stork-scheduler-role-binding
+  name: stork-role-binding
   namespace: portworx
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: stork-scheduler-role
+  name: stork-role
 subjects:
 - kind: ServiceAccount
-  name: stork-scheduler-account
+  name: stork-account
   namespace: kube-system
-
----
-apiVersion: extensions/v1beta1
-kind: Deployment
-metadata:
-  annotations:
-    scheduler.alpha.kubernetes.io/critical-pod: ""
-  labels:
-    tier: control-plane
-  name: portworx-pvc-controller
-  namespace: kube-system
-spec:
-  replicas: 3
-  strategy:
-    rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 1
-    type: RollingUpdate
-  template:
-    metadata:
-      annotations:
-        scheduler.alpha.kubernetes.io/critical-pod: ""
-      labels:
-        name: portworx-pvc-controller
-        tier: control-plane
-    spec:
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-            - matchExpressions:
-              - key: px/enabled
-                operator: NotIn
-                values:
-                - "false"
-        podAntiAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-          - labelSelector:
-              matchExpressions:
-              - key: name
-                operator: In
-                values:
-                - portworx-pvc-controller
-            topologyKey: kubernetes.io/hostname
-      containers:
-      - command:
-        - kube-controller-manager
-        - --leader-elect=true
-        - --address=0.0.0.0
-        - --controllers=persistentvolume-binder
-        - --use-service-account-credentials=true
-        - --leader-elect-resource-lock=configmaps
-        image: gcr.io/google_containers/kube-controller-manager-amd64:v1.9.0
-        livenessProbe:
-          failureThreshold: 8
-          httpGet:
-            host: 127.0.0.1
-            path: /healthz
-            port: 10252
-            scheme: HTTP
-          initialDelaySeconds: 15
-          timeoutSeconds: 15
-        name: portworx-pvc-controller-manager
-        resources:
-          requests:
-            cpu: 200m
-      hostNetwork: true
-      serviceAccountName: portworx-pvc-controller-account
-
----
-apiVersion: apps/v1beta1
-kind: Deployment
-metadata:
-  labels:
-    component: scheduler
-    tier: control-plane
-  name: stork-scheduler
-  namespace: kube-system
-spec:
-  replicas: 3
-  template:
-    metadata:
-      labels:
-        component: scheduler
-        tier: control-plane
-      name: stork-scheduler
-    spec:
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-            - matchExpressions:
-              - key: px/enabled
-                operator: NotIn
-                values:
-                - "false"
-        podAntiAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-          - labelSelector:
-              matchExpressions:
-              - key: name
-                operator: In
-                values:
-                - stork-scheduler
-            topologyKey: kubernetes.io/hostname
-      containers:
-      - command:
-        - /usr/local/bin/kube-scheduler
-        - --address=0.0.0.0
-        - --leader-elect=true
-        - --scheduler-name=stork
-        - --policy-configmap=stork-config
-        - --policy-configmap-namespace=kube-system
-        - --lock-object-name=stork-scheduler
-        image: gcr.io/google_containers/kube-scheduler-amd64:v1.9.0
-        livenessProbe:
-          httpGet:
-            path: /healthz
-            port: 10251
-          initialDelaySeconds: 15
-        name: stork-scheduler
-        readinessProbe:
-          httpGet:
-            path: /healthz
-            port: 10251
-        resources:
-          requests:
-            cpu: "0.1"
-      hostPID: false
-      serviceAccountName: stork-scheduler-account
-
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: px-lh-account
-  namespace: kube-system
-
----
-apiVersion: storage.k8s.io/v1beta1
-kind: StorageClass
-metadata:
-  name: portworx-db-sc
-  namespace: portworx
-parameters:
-  io_profile: db
-  repl: "3"
-provisioner: kubernetes.io/portworx-volume
-
----
-apiVersion: storage.k8s.io/v1beta1
-kind: StorageClass
-metadata:
-  name: portworx-db2-sc
-  namespace: portworx
-parameters:
-  block_size: 512b
-  io_profile: db
-  repl: "3"
-provisioner: kubernetes.io/portworx-volume
-
----
-apiVersion: storage.k8s.io/v1beta1
-kind: StorageClass
-metadata:
-  name: portworx-shared-sc
-  namespace: portworx
-parameters:
-  repl: "3"
-  shared: "true"
-provisioner: kubernetes.io/portworx-volume
 
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  labels:
-    tier: px-web-console
-  name: px-lighthouse
+  name: stork-service
   namespace: kube-system
 spec:
   ports:
-  - name: http
-    port: 80
-  - name: https
-    port: 443
+  - port: 8099
+    protocol: TCP
+    targetPort: 8099
   selector:
-    tier: px-web-console
-  type: NodePort
+    name: stork
+
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: stork-snapshot-sc
+  namespace: portworx
+provisioner: stork-snapshot
 
 ---
 apiVersion: apps/v1beta2
@@ -1226,17 +1017,224 @@ spec:
         name: config
 
 ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: px-account
+  namespace: kube-system
+
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: px-lh-role-binding
-  namespace: kube-system
+  name: stork-scheduler-role-binding
+  namespace: portworx
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: px-lh-role
+  name: stork-scheduler-role
 subjects:
 - kind: ServiceAccount
-  name: px-lh-account
+  name: stork-scheduler-account
   namespace: kube-system
+
+---
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  labels:
+    component: scheduler
+    tier: control-plane
+  name: stork-scheduler
+  namespace: kube-system
+spec:
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        component: scheduler
+        tier: control-plane
+      name: stork-scheduler
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: px/enabled
+                operator: NotIn
+                values:
+                - "false"
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: name
+                operator: In
+                values:
+                - stork-scheduler
+            topologyKey: kubernetes.io/hostname
+      containers:
+      - command:
+        - /usr/local/bin/kube-scheduler
+        - --address=0.0.0.0
+        - --leader-elect=true
+        - --scheduler-name=stork
+        - --policy-configmap=stork-config
+        - --policy-configmap-namespace=kube-system
+        - --lock-object-name=stork-scheduler
+        image: gcr.io/google_containers/kube-scheduler-amd64:v1.9.0
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 10251
+          initialDelaySeconds: 15
+        name: stork-scheduler
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 10251
+        resources:
+          requests:
+            cpu: "0.1"
+      hostPID: false
+      serviceAccountName: stork-scheduler-account
+
+---
+apiVersion: storage.k8s.io/v1beta1
+kind: StorageClass
+metadata:
+  name: portworx-db-sc
+  namespace: portworx
+parameters:
+  io_profile: db
+  repl: "3"
+provisioner: kubernetes.io/portworx-volume
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: portworx-pvc-controller-account
+  namespace: kube-system
+
+---
+apiVersion: storage.k8s.io/v1beta1
+kind: StorageClass
+metadata:
+  annotations:
+    params/aggregation_level: Specifies the number of replication sets the volume
+      can be aggregated from
+    params/block_size: Block size
+    params/docs: https://docs.portworx.com/scheduler/kubernetes/dynamic-provisioning.html
+    params/fg: This option enforces volume group policy. If a volume belonging to
+      a group cannot find nodes for it's replication sets which don't have other volumes
+      of same group, the volume creation will fail.
+    params/fs: 'Filesystem to be laid out: none|xfs|ext4 '
+    params/group: The group a volume should belong too. Portworx will restrict replication
+      sets of volumes of the same group on different nodes. If the force group option
+      'fg' is set to true, the volume group rule will be strictly enforced. By default,
+      it's not strictly enforced.
+    params/io_profile: IO Profile can be used to override the I/O algorithm Portworx
+      uses for the volumes. Supported values are [db](/maintain/performance/tuning.html#db),
+      [sequential](/maintain/performance/tuning.html#sequential), [random](/maintain/performance/tuning.html#random),
+      [cms](/maintain/performance/tuning.html#cms)
+    params/journal: Flag to indicate if you want to use journal device for the volume's
+      metadata. This will use the journal device that you used when installing Portworx.
+      As of PX version 1.3, it is recommended to use a journal device to absorb PX
+      metadata writes
+    params/label: List of comma-separated name=value pairs to apply to the Portworx
+      volume
+    params/nodes: Comma-separated Portworx Node ID's to use for replication sets of
+      the volume
+    params/priority_io: 'IO Priority: low|medium|high'
+    params/repl: 'Replication factor for the volume: 1|2|3'
+    params/shared: 'Flag to create a globally shared namespace volume which can be
+      used by multiple pods : true|false'
+    params/snap_schedule: 'Snapshot schedule. Following are the accepted formats:  periodic=_mins_,_snaps-to-keep_
+      daily=_hh:mm_,_snaps-to-keep_ weekly=_weekday@hh:mm_,_snaps-to-keep_  monthly=_day@hh:mm_,_snaps-to-keep_
+      _snaps-to-keep_ is optional. Periodic, Daily, Weekly and Monthly keep last 5,
+      7, 5 and 12 snapshots by default respectively'
+    params/sticky: Flag to create sticky volumes that cannot be deleted until the
+      flag is disabled
+  name: portworx-null-sc
+  namespace: portworx
+parameters: null
+provisioner: kubernetes.io/portworx-volume
+
+---
+apiVersion: storage.k8s.io/v1beta1
+kind: StorageClass
+metadata:
+  name: portworx-shared-sc
+  namespace: portworx
+parameters:
+  repl: "3"
+  shared: "true"
+provisioner: kubernetes.io/portworx-volume
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: stork-scheduler-account
+  namespace: kube-system
+
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  annotations:
+    scheduler.alpha.kubernetes.io/critical-pod: ""
+  labels:
+    tier: control-plane
+  name: stork
+  namespace: kube-system
+spec:
+  replicas: 3
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:
+        scheduler.alpha.kubernetes.io/critical-pod: ""
+      labels:
+        name: stork
+        tier: control-plane
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: px/enabled
+                operator: NotIn
+                values:
+                - "false"
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: name
+                operator: In
+                values:
+                - stork
+            topologyKey: kubernetes.io/hostname
+      containers:
+      - command:
+        - /stork
+        - --driver=pxd
+        - --verbose
+        - --leader-elect=true
+        image: openstorage/stork:2.2.4
+        imagePullPolicy: Always
+        name: stork
+        resources:
+          requests:
+            cpu: "0.1"
+      hostPID: false
+      serviceAccountName: stork-account
 
